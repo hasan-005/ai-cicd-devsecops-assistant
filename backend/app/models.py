@@ -26,3 +26,23 @@ class PipelineRun(Base):
     vulnerabilities = Column(Integer)
 
     created_at = Column(DateTime, default=datetime.utcnow)
+
+class SecurityScan(Base):
+    __tablename__ = "security_scans"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    critical = Column(Integer, default=0)
+    high = Column(Integer, default=0)
+    medium = Column(Integer, default=0)
+    low = Column(Integer, default=0)
+
+    vulnerabilities = Column(Integer, default=0)
+    secrets = Column(Integer, default=0)
+    misconfigurations = Column(Integer, default=0)
+
+    security_score = Column(Integer, default=100)
+
+    risk_level = Column(String)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
