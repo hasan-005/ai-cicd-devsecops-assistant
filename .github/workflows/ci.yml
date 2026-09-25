@@ -35,6 +35,7 @@ jobs:
         run: |
           python -m pytest
 
+      # Full security scan
       - name: Run Trivy security scan
         uses: aquasecurity/trivy-action@v0.36.0
         with:
@@ -45,6 +46,7 @@ jobs:
           format: table
           exit-code: 0
 
+      # Generate machine-readable JSON report
       - name: Generate Trivy JSON report
         uses: aquasecurity/trivy-action@v0.36.0
         with:
@@ -56,8 +58,20 @@ jobs:
           output: trivy-results.json
           exit-code: 0
 
+      # Save JSON report as GitHub artifact
       - name: Upload Trivy security report
         uses: actions/upload-artifact@v4
         with:
           name: trivy-security-report
           path: trivy-results.json
+
+      # Deployment security gate
+      - name: Security deployment gate
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,secret,misconfig
+          severity: CRITICAL
+          format: table
+          exit-code: 1

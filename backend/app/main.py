@@ -18,7 +18,7 @@ from .complexity import analyze_complexity
 from .security import analyze_trivy_report
 
 from samples.sample_code import calculate_sum
-
+from .predictor import predict_failure
 
 # Create database tables
 models.Base.metadata.create_all(bind=engine)
@@ -431,4 +431,27 @@ def deployment_security_check(
         "risk_level": scan.risk_level,
         "critical": scan.critical,
         "high": scan.high
+    }
+
+@app.post("/api/predict")
+def predict_pipeline_failure(
+    pipeline: schemas.FailurePredictionRequest
+):
+    result = predict_failure(
+        build_time=pipeline.build_time,
+        tests_failed=pipeline.tests_failed,
+        cpu_usage=pipeline.cpu_usage,
+        memory_usage=pipeline.memory_usage,
+        vulnerabilities=pipeline.vulnerabilities
+    )
+
+    return {
+        "input": {
+            "build_time": pipeline.build_time,
+            "tests_failed": pipeline.tests_failed,
+            "cpu_usage": pipeline.cpu_usage,
+            "memory_usage": pipeline.memory_usage,
+            "vulnerabilities": pipeline.vulnerabilities
+        },
+        "prediction": result
     }

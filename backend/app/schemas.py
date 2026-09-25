@@ -25,3 +25,10 @@ class PipelineRunResponse(PipelineRunCreate):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+class FailurePredictionRequest(BaseModel):
+    build_time: float = Field(ge=0)
+    tests_failed: int = Field(ge=0)
+    cpu_usage: float = Field(ge=0, le=100)
+    memory_usage: float = Field(ge=0)
+    vulnerabilities: int = Field(ge=0)
