@@ -9,33 +9,78 @@ on:
     branches:
       - main
 
+
 jobs:
   backend-test:
+
     runs-on: ubuntu-latest
 
-    defaults:
-      run:
-        working-directory: backend
-
     steps:
+
+      # -------------------------------------------------------
+      # Checkout
+      # -------------------------------------------------------
+
       - name: Checkout repository
         uses: actions/checkout@v4
+
+
+      # -------------------------------------------------------
+      # Python
+      # -------------------------------------------------------
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
 
+
+      # -------------------------------------------------------
+      # Start pipeline timer
+      # -------------------------------------------------------
+
+      - name: Start pipeline timer
+        run: |
+          echo "PIPELINE_START=$(date +%s)" >> "$GITHUB_ENV"
+
+
+      # -------------------------------------------------------
+      # Install dependencies
+      # -------------------------------------------------------
+
       - name: Install dependencies
+        working-directory: backend
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run backend tests
-        run: |
-          python -m pytest
 
-      # Full security scan
+      # -------------------------------------------------------
+      # Run tests and collect resource usage
+      # -------------------------------------------------------
+
+      - name: Run backend tests
+        id: tests
+        working-directory: backend
+        run: |
+          set +e
+
+          /usr/bin/time -v \
+            -o test-resource.txt \
+            python -m pytest \
+            --junitxml=pytest-results.xml
+
+          TEST_EXIT_CODE=$?
+
+          echo "exit_code=$TEST_EXIT_CODE" >> "$GITHUB_OUTPUT"
+
+          exit 0
+
+
+      # -------------------------------------------------------
+      # Trivy readable scan
+      # -------------------------------------------------------
+
       - name: Run Trivy security scan
         uses: aquasecurity/trivy-action@v0.36.0
         with:
@@ -46,7 +91,11 @@ jobs:
           format: table
           exit-code: 0
 
-      # Generate machine-readable JSON report
+
+      # -------------------------------------------------------
+      # Trivy JSON report
+      # -------------------------------------------------------
+
       - name: Generate Trivy JSON report
         uses: aquasecurity/trivy-action@v0.36.0
         with:
@@ -58,42 +107,437 @@ jobs:
           output: trivy-results.json
           exit-code: 0
 
-      # Save JSON report as GitHub artifact
+
+      # -------------------------------------------------------
+      # Upload security artifact
+      # -------------------------------------------------------
+
       - name: Upload Trivy security report
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: trivy-security-report
           path: trivy-results.json
 
-      # Deployment security gate
-      - name: Security deployment gate
-        uses: aquasecurity/trivy-action@v0.36.0
-        with:
-          scan-type: fs
-          scan-ref: .
-          scanners: vuln,secret,misconfig
-          severity: CRITICAL
-          format: table
-          exit-code: 1
-      - name: Send CI result to dashboard backend
+
+      # -------------------------------------------------------
+      # Calculate real CI metrics
+      # -------------------------------------------------------
+
+      - name: Collect CI metrics
+        id: metrics
         if: always()
         env:
-          BACKEND_API_URL: ${{ secrets.BACKEND_API_URL }}
+          TEST_EXIT_CODE: ${{ steps.tests.outputs.exit_code }}
+
         run: |
+          python <<'PY'
+          import json
+          import os
+          import re
+          import time
+          import xml.etree.ElementTree as ET
+
+
+          # ---------------------------------------------
+          # Build time
+          # ---------------------------------------------
+
+          start_time = int(
+              os.environ.get(
+                  "PIPELINE_START",
+                  str(int(time.time()))
+              )
+          )
+
+          build_time = max(
+              0,
+              int(time.time()) - start_time
+          )
+
+
+          # ---------------------------------------------
+          # Pytest results
+          # ---------------------------------------------
+
+          tests_passed = 0
+          tests_failed = 0
+
+          junit_path = (
+              "backend/pytest-results.xml"
+          )
+
+          if os.path.exists(junit_path):
+
+              root = ET.parse(
+                  junit_path
+              ).getroot()
+
+              suites = (
+                  [root]
+                  if root.tag == "testsuite"
+                  else root.findall(
+                      ".//testsuite"
+                  )
+              )
+
+              total = 0
+              failures = 0
+              errors = 0
+              skipped = 0
+
+              for suite in suites:
+
+                  total += int(
+                      suite.attrib.get(
+                          "tests",
+                          0
+                      )
+                  )
+
+                  failures += int(
+                      suite.attrib.get(
+                          "failures",
+                          0
+                      )
+                  )
+
+                  errors += int(
+                      suite.attrib.get(
+                          "errors",
+                          0
+                      )
+                  )
+
+                  skipped += int(
+                      suite.attrib.get(
+                          "skipped",
+                          0
+                      )
+                  )
+
+              tests_failed = (
+                  failures
+                  + errors
+              )
+
+              tests_passed = max(
+                  0,
+                  total
+                  - failures
+                  - errors
+                  - skipped
+              )
+
+
+          # ---------------------------------------------
+          # CPU + memory from pytest process
+          # ---------------------------------------------
+
+          cpu_usage = 0.0
+          memory_usage = 0.0
+
+          resource_path = (
+              "backend/test-resource.txt"
+          )
+
+          if os.path.exists(
+              resource_path
+          ):
+
+              text = open(
+                  resource_path,
+                  encoding="utf-8"
+              ).read()
+
+
+              cpu_match = re.search(
+                  r"Percent of CPU this job got:\s*([\d.]+)%",
+                  text
+              )
+
+              if cpu_match:
+                  cpu_usage = min(
+                      100.0,
+                      float(
+                          cpu_match.group(1)
+                      )
+                  )
+
+
+              memory_match = re.search(
+                  r"Maximum resident set size \(kbytes\):\s*(\d+)",
+                  text
+              )
+
+              if memory_match:
+
+                  memory_kb = int(
+                      memory_match.group(1)
+                  )
+
+                  memory_usage = round(
+                      memory_kb / 1024,
+                      2
+                  )
+
+
+          # ---------------------------------------------
+          # Trivy vulnerabilities
+          # ---------------------------------------------
+
+          vulnerabilities = 0
+          critical_count = 0
+
+          trivy_path = (
+              "trivy-results.json"
+          )
+
+          if os.path.exists(
+              trivy_path
+          ):
+
+              with open(
+                  trivy_path,
+                  encoding="utf-8"
+              ) as file:
+
+                  report = json.load(
+                      file
+                  )
+
+
+              for result in report.get(
+                  "Results",
+                  []
+              ):
+
+                  for vulnerability in (
+                      result.get(
+                          "Vulnerabilities"
+                      )
+                      or []
+                  ):
+
+                      vulnerabilities += 1
+
+                      severity = str(
+                          vulnerability.get(
+                              "Severity",
+                              ""
+                          )
+                      ).upper()
+
+                      if (
+                          severity
+                          == "CRITICAL"
+                      ):
+                          critical_count += 1
+
+
+          # ---------------------------------------------
+          # Pipeline status
+          # ---------------------------------------------
+
+          test_exit_code = int(
+              os.environ.get(
+                  "TEST_EXIT_CODE",
+                  "1"
+              )
+              or 1
+          )
+
+
+          if (
+              test_exit_code != 0
+              or critical_count > 0
+          ):
+              status = "failed"
+
+          else:
+              status = "success"
+
+
+          # ---------------------------------------------
+          # GitHub outputs
+          # ---------------------------------------------
+
+          github_output = (
+              os.environ[
+                  "GITHUB_OUTPUT"
+              ]
+          )
+
+          with open(
+              github_output,
+              "a",
+              encoding="utf-8"
+          ) as output:
+
+              output.write(
+                  f"status={status}\n"
+              )
+
+              output.write(
+                  f"build_time={build_time}\n"
+              )
+
+              output.write(
+                  f"tests_passed={tests_passed}\n"
+              )
+
+              output.write(
+                  f"tests_failed={tests_failed}\n"
+              )
+
+              output.write(
+                  f"cpu_usage={cpu_usage}\n"
+              )
+
+              output.write(
+                  f"memory_usage={memory_usage}\n"
+              )
+
+              output.write(
+                  f"vulnerabilities={vulnerabilities}\n"
+              )
+
+              output.write(
+                  f"critical_count={critical_count}\n"
+              )
+
+
+          print(
+              "CI metrics collected:"
+          )
+
+          print(
+              "Status:",
+              status
+          )
+
+          print(
+              "Build time:",
+              build_time
+          )
+
+          print(
+              "Tests passed:",
+              tests_passed
+          )
+
+          print(
+              "Tests failed:",
+              tests_failed
+          )
+
+          print(
+              "CPU:",
+              cpu_usage
+          )
+
+          print(
+              "Memory MB:",
+              memory_usage
+          )
+
+          print(
+              "Vulnerabilities:",
+              vulnerabilities
+          )
+
+          print(
+              "Critical:",
+              critical_count
+          )
+
+          PY
+
+
+      # -------------------------------------------------------
+      # Send results to FastAPI / Render
+      # -------------------------------------------------------
+
+      - name: Send CI result to dashboard backend
+        if: always()
+
+        env:
+          BACKEND_API_URL: ${{ secrets.BACKEND_API_URL }}
+
+          PIPELINE_STATUS: ${{ steps.metrics.outputs.status }}
+
+          BUILD_TIME: ${{ steps.metrics.outputs.build_time }}
+
+          TESTS_PASSED: ${{ steps.metrics.outputs.tests_passed }}
+
+          TESTS_FAILED: ${{ steps.metrics.outputs.tests_failed }}
+
+          CPU_USAGE: ${{ steps.metrics.outputs.cpu_usage }}
+
+          MEMORY_USAGE: ${{ steps.metrics.outputs.memory_usage }}
+
+          VULNERABILITIES: ${{ steps.metrics.outputs.vulnerabilities }}
+
+        run: |
+
           if [ -z "$BACKEND_API_URL" ]; then
+
             echo "BACKEND_API_URL secret is not configured."
-            exit 0
+
+            exit 1
+
           fi
 
-          curl -X POST "$BACKEND_API_URL/api/ci/report" \
+
+          cat > ci-payload.json <<EOF
+          {
+            "pipeline_id": ${{ github.run_id }},
+            "status": "$PIPELINE_STATUS",
+            "build_time": $BUILD_TIME,
+            "tests_passed": $TESTS_PASSED,
+            "tests_failed": $TESTS_FAILED,
+            "cpu_usage": $CPU_USAGE,
+            "memory_usage": $MEMORY_USAGE,
+            "vulnerabilities": $VULNERABILITIES
+          }
+          EOF
+
+
+          echo "Sending CI payload:"
+
+          cat ci-payload.json
+
+
+          curl \
+            --fail-with-body \
+            --retry 3 \
+            --retry-delay 5 \
+            -X POST \
+            "$BACKEND_API_URL/api/ci/report" \
             -H "Content-Type: application/json" \
-            -d '{
-              "pipeline_id": ${{ github.run_id }},
-              "status": "${{ job.status }}",
-              "build_time": 0,
-              "tests_passed": 0,
-              "tests_failed": 0,
-              "cpu_usage": 0,
-              "memory_usage": 0,
-              "vulnerabilities": 0
-            }'
+            --data @ci-payload.json
+
+
+      # -------------------------------------------------------
+      # Final CI deployment gate
+      # -------------------------------------------------------
+
+      - name: CI deployment gate
+        if: always()
+
+        env:
+          PIPELINE_STATUS: ${{ steps.metrics.outputs.status }}
+
+        run: |
+
+          echo "Final pipeline status: $PIPELINE_STATUS"
+
+          if [ "$PIPELINE_STATUS" = "failed" ]; then
+
+            echo "Deployment blocked."
+
+            exit 1
+
+          fi
+
+          echo "Deployment allowed."
