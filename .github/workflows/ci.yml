@@ -643,9 +643,61 @@ jobs:
 
           echo "AI prediction completed successfully."
 
-
       # =======================================================
-      # 12. SEND PIPELINE METRICS TO FASTAPI
+      # 12. AUTOMATIC CODE COMPLEXITY ANALYSIS
+      # =======================================================
+
+      - name: Run automatic code complexity analysis
+        if: always()
+
+        env:
+          BACKEND_API_URL: ${{ secrets.BACKEND_API_URL }}
+
+        run: |
+          if [ -z "$BACKEND_API_URL" ]; then
+            echo "BACKEND_API_URL secret is not configured."
+            exit 1
+          fi
+
+          echo "Analyzing backend Python files..."
+
+          FILES=(
+            "backend/app/complexity.py"
+            "backend/app/performance.py"
+            "backend/app/security.py"
+            "backend/app/predictor.py"
+            "backend/app/main.py"
+          )
+
+          for FILE in "${FILES[@]}"; do
+
+            if [ -f "$FILE" ]; then
+
+              echo ""
+              echo "Analyzing: $FILE"
+
+              curl \
+                --fail-with-body \
+                --retry 3 \
+                --retry-delay 5 \
+                --max-time 90 \
+                -X POST \
+                "$BACKEND_API_URL/api/analyze/upload" \
+                -F "file=@$FILE"
+
+              echo ""
+
+            else
+
+              echo "File not found: $FILE"
+
+            fi
+
+          done
+
+          echo "Complexity analysis completed successfully."
+      # =======================================================
+      # 13. SEND PIPELINE METRICS TO FASTAPI
       # =======================================================
 
       - name: Send CI result to dashboard backend
