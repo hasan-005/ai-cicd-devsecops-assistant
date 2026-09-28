@@ -17,17 +17,17 @@ jobs:
 
     steps:
 
-      # -------------------------------------------------------
-      # Checkout
-      # -------------------------------------------------------
+      # =======================================================
+      # 1. CHECKOUT REPOSITORY
+      # =======================================================
 
       - name: Checkout repository
         uses: actions/checkout@v4
 
 
-      # -------------------------------------------------------
-      # Python
-      # -------------------------------------------------------
+      # =======================================================
+      # 2. SETUP PYTHON
+      # =======================================================
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -35,18 +35,18 @@ jobs:
           python-version: "3.13"
 
 
-      # -------------------------------------------------------
-      # Start pipeline timer
-      # -------------------------------------------------------
+      # =======================================================
+      # 3. START PIPELINE TIMER
+      # =======================================================
 
       - name: Start pipeline timer
         run: |
           echo "PIPELINE_START=$(date +%s)" >> "$GITHUB_ENV"
 
 
-      # -------------------------------------------------------
-      # Install dependencies
-      # -------------------------------------------------------
+      # =======================================================
+      # 4. INSTALL BACKEND DEPENDENCIES
+      # =======================================================
 
       - name: Install dependencies
         working-directory: backend
@@ -55,9 +55,9 @@ jobs:
           pip install -r requirements.txt
 
 
-      # -------------------------------------------------------
-      # Run tests and collect resource usage
-      # -------------------------------------------------------
+      # =======================================================
+      # 5. RUN PYTEST + RESOURCE MONITORING
+      # =======================================================
 
       - name: Run backend tests
         id: tests
@@ -77,9 +77,9 @@ jobs:
           exit 0
 
 
-      # -------------------------------------------------------
-      # Trivy readable scan
-      # -------------------------------------------------------
+      # =======================================================
+      # 6. TRIVY READABLE SECURITY SCAN
+      # =======================================================
 
       - name: Run Trivy security scan
         uses: aquasecurity/trivy-action@v0.36.0
@@ -92,9 +92,9 @@ jobs:
           exit-code: 0
 
 
-      # -------------------------------------------------------
-      # Trivy JSON report
-      # -------------------------------------------------------
+      # =======================================================
+      # 7. GENERATE TRIVY JSON REPORT
+      # =======================================================
 
       - name: Generate Trivy JSON report
         uses: aquasecurity/trivy-action@v0.36.0
@@ -108,9 +108,42 @@ jobs:
           exit-code: 0
 
 
-      # -------------------------------------------------------
-      # Upload security artifact
-      # -------------------------------------------------------
+      # =======================================================
+      # 8. SEND SECURITY REPORT TO FASTAPI
+      # =======================================================
+
+      - name: Send security report to dashboard backend
+        if: always()
+        env:
+          BACKEND_API_URL: ${{ secrets.BACKEND_API_URL }}
+        run: |
+          if [ -z "$BACKEND_API_URL" ]; then
+            echo "BACKEND_API_URL secret is not configured."
+            exit 1
+          fi
+
+          if [ ! -f "trivy-results.json" ]; then
+            echo "Trivy report was not generated."
+            exit 1
+          fi
+
+          echo "Sending Trivy report to backend..."
+
+          curl \
+            --fail-with-body \
+            --retry 3 \
+            --retry-delay 5 \
+            -X POST \
+            "$BACKEND_API_URL/api/security/analyze" \
+            -F "file=@trivy-results.json"
+
+          echo ""
+          echo "Security report sent successfully."
+
+
+      # =======================================================
+      # 9. UPLOAD TRIVY REPORT AS GITHUB ARTIFACT
+      # =======================================================
 
       - name: Upload Trivy security report
         if: always()
@@ -118,11 +151,12 @@ jobs:
         with:
           name: trivy-security-report
           path: trivy-results.json
+          if-no-files-found: warn
 
 
-      # -------------------------------------------------------
-      # Calculate real CI metrics
-      # -------------------------------------------------------
+      # =======================================================
+      # 10. COLLECT REAL CI METRICS
+      # =======================================================
 
       - name: Collect CI metrics
         id: metrics
@@ -139,9 +173,9 @@ jobs:
           import xml.etree.ElementTree as ET
 
 
-          # ---------------------------------------------
-          # Build time
-          # ---------------------------------------------
+          # ---------------------------------------------------
+          # Build / pipeline elapsed time
+          # ---------------------------------------------------
 
           start_time = int(
               os.environ.get(
@@ -156,30 +190,23 @@ jobs:
           )
 
 
-          # ---------------------------------------------
+          # ---------------------------------------------------
           # Pytest results
-          # ---------------------------------------------
+          # ---------------------------------------------------
 
           tests_passed = 0
           tests_failed = 0
 
-          junit_path = (
-              "backend/pytest-results.xml"
-          )
+          junit_path = "backend/pytest-results.xml"
 
           if os.path.exists(junit_path):
 
-              root = ET.parse(
-                  junit_path
-              ).getroot()
+              root = ET.parse(junit_path).getroot()
 
-              suites = (
-                  [root]
-                  if root.tag == "testsuite"
-                  else root.findall(
-                      ".//testsuite"
-                  )
-              )
+              if root.tag == "testsuite":
+                  suites = [root]
+              else:
+                  suites = root.findall(".//testsuite")
 
               total = 0
               failures = 0
@@ -216,10 +243,7 @@ jobs:
                       )
                   )
 
-              tests_failed = (
-                  failures
-                  + errors
-              )
+              tests_failed = failures + errors
 
               tests_passed = max(
                   0,
@@ -230,25 +254,24 @@ jobs:
               )
 
 
-          # ---------------------------------------------
-          # CPU + memory from pytest process
-          # ---------------------------------------------
+          # ---------------------------------------------------
+          # CPU + memory usage of pytest process
+          # ---------------------------------------------------
 
           cpu_usage = 0.0
           memory_usage = 0.0
 
-          resource_path = (
-              "backend/test-resource.txt"
-          )
+          resource_path = "backend/test-resource.txt"
 
-          if os.path.exists(
-              resource_path
-          ):
+          if os.path.exists(resource_path):
 
-              text = open(
+              with open(
                   resource_path,
+                  "r",
                   encoding="utf-8"
-              ).read()
+              ) as resource_file:
+
+                  text = resource_file.read()
 
 
               cpu_match = re.search(
@@ -257,11 +280,10 @@ jobs:
               )
 
               if cpu_match:
+
                   cpu_usage = min(
                       100.0,
-                      float(
-                          cpu_match.group(1)
-                      )
+                      float(cpu_match.group(1))
                   )
 
 
@@ -282,28 +304,29 @@ jobs:
                   )
 
 
-          # ---------------------------------------------
-          # Trivy vulnerabilities
-          # ---------------------------------------------
+          # ---------------------------------------------------
+          # Trivy vulnerability information
+          # ---------------------------------------------------
 
           vulnerabilities = 0
+
           critical_count = 0
+          high_count = 0
+          medium_count = 0
+          low_count = 0
 
-          trivy_path = (
-              "trivy-results.json"
-          )
+          trivy_path = "trivy-results.json"
 
-          if os.path.exists(
-              trivy_path
-          ):
+          if os.path.exists(trivy_path):
 
               with open(
                   trivy_path,
+                  "r",
                   encoding="utf-8"
-              ) as file:
+              ) as trivy_file:
 
                   report = json.load(
-                      file
+                      trivy_file
                   )
 
 
@@ -328,25 +351,52 @@ jobs:
                           )
                       ).upper()
 
-                      if (
-                          severity
-                          == "CRITICAL"
-                      ):
+
+                      if severity == "CRITICAL":
+
                           critical_count += 1
 
+                      elif severity == "HIGH":
 
-          # ---------------------------------------------
-          # Pipeline status
-          # ---------------------------------------------
+                          high_count += 1
 
-          test_exit_code = int(
-              os.environ.get(
-                  "TEST_EXIT_CODE",
-                  "1"
-              )
-              or 1
+                      elif severity == "MEDIUM":
+
+                          medium_count += 1
+
+                      elif severity == "LOW":
+
+                          low_count += 1
+
+
+          # ---------------------------------------------------
+          # Test exit code
+          # ---------------------------------------------------
+
+          raw_test_exit_code = os.environ.get(
+              "TEST_EXIT_CODE",
+              "1"
           )
 
+          try:
+              test_exit_code = int(
+                  raw_test_exit_code
+                  if raw_test_exit_code != ""
+                  else "1"
+              )
+
+          except ValueError:
+              test_exit_code = 1
+
+
+          # ---------------------------------------------------
+          # Final pipeline status
+          #
+          # Failed when:
+          # 1. Pytest failed
+          # OR
+          # 2. Critical security vulnerabilities exist
+          # ---------------------------------------------------
 
           if (
               test_exit_code != 0
@@ -358,15 +408,13 @@ jobs:
               status = "success"
 
 
-          # ---------------------------------------------
+          # ---------------------------------------------------
           # GitHub outputs
-          # ---------------------------------------------
+          # ---------------------------------------------------
 
-          github_output = (
-              os.environ[
-                  "GITHUB_OUTPUT"
-              ]
-          )
+          github_output = os.environ[
+              "GITHUB_OUTPUT"
+          ]
 
           with open(
               github_output,
@@ -406,19 +454,36 @@ jobs:
                   f"critical_count={critical_count}\n"
               )
 
+              output.write(
+                  f"high_count={high_count}\n"
+              )
+
+              output.write(
+                  f"medium_count={medium_count}\n"
+              )
+
+              output.write(
+                  f"low_count={low_count}\n"
+              )
+
+
+          # ---------------------------------------------------
+          # Logs
+          # ---------------------------------------------------
+
+          print("======================================")
+          print("CI METRICS")
+          print("======================================")
 
           print(
-              "CI metrics collected:"
-          )
-
-          print(
-              "Status:",
+              "Pipeline status:",
               status
           )
 
           print(
               "Build time:",
-              build_time
+              build_time,
+              "seconds"
           )
 
           print(
@@ -432,13 +497,15 @@ jobs:
           )
 
           print(
-              "CPU:",
-              cpu_usage
+              "CPU usage:",
+              cpu_usage,
+              "%"
           )
 
           print(
-              "Memory MB:",
-              memory_usage
+              "Memory usage:",
+              memory_usage,
+              "MB"
           )
 
           print(
@@ -451,12 +518,29 @@ jobs:
               critical_count
           )
 
+          print(
+              "High:",
+              high_count
+          )
+
+          print(
+              "Medium:",
+              medium_count
+          )
+
+          print(
+              "Low:",
+              low_count
+          )
+
+          print("======================================")
+
           PY
 
 
-      # -------------------------------------------------------
-      # Send results to FastAPI / Render
-      # -------------------------------------------------------
+      # =======================================================
+      # 11. SEND PIPELINE METRICS TO FASTAPI
+      # =======================================================
 
       - name: Send CI result to dashboard backend
         if: always()
@@ -489,6 +573,15 @@ jobs:
           fi
 
 
+          if [ -z "$PIPELINE_STATUS" ]; then
+
+            echo "CI metrics were not generated."
+
+            exit 1
+
+          fi
+
+
           cat > ci-payload.json <<EOF
           {
             "pipeline_id": ${{ github.run_id }},
@@ -504,7 +597,6 @@ jobs:
 
 
           echo "Sending CI payload:"
-
           cat ci-payload.json
 
 
@@ -517,10 +609,13 @@ jobs:
             -H "Content-Type: application/json" \
             --data @ci-payload.json
 
+          echo ""
+          echo "Pipeline metrics sent successfully."
 
-      # -------------------------------------------------------
-      # Final CI deployment gate
-      # -------------------------------------------------------
+
+      # =======================================================
+      # 12. FINAL DEPLOYMENT GATE
+      # =======================================================
 
       - name: CI deployment gate
         if: always()
@@ -539,5 +634,15 @@ jobs:
             exit 1
 
           fi
+
+
+          if [ -z "$PIPELINE_STATUS" ]; then
+
+            echo "Pipeline status could not be determined."
+
+            exit 1
+
+          fi
+
 
           echo "Deployment allowed."
