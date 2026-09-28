@@ -114,8 +114,10 @@ jobs:
 
       - name: Send security report to dashboard backend
         if: always()
+
         env:
           BACKEND_API_URL: ${{ secrets.BACKEND_API_URL }}
+
         run: |
           if [ -z "$BACKEND_API_URL" ]; then
             echo "BACKEND_API_URL secret is not configured."
@@ -133,6 +135,7 @@ jobs:
             --fail-with-body \
             --retry 3 \
             --retry-delay 5 \
+            --max-time 90 \
             -X POST \
             "$BACKEND_API_URL/api/security/analyze" \
             -F "file=@trivy-results.json"
@@ -147,7 +150,9 @@ jobs:
 
       - name: Upload Trivy security report
         if: always()
+
         uses: actions/upload-artifact@v4
+
         with:
           name: trivy-security-report
           path: trivy-results.json
@@ -161,6 +166,7 @@ jobs:
       - name: Collect CI metrics
         id: metrics
         if: always()
+
         env:
           TEST_EXIT_CODE: ${{ steps.tests.outputs.exit_code }}
 
@@ -174,7 +180,7 @@ jobs:
 
 
           # ---------------------------------------------------
-          # Build / pipeline elapsed time
+          # BUILD / PIPELINE TIME
           # ---------------------------------------------------
 
           start_time = int(
@@ -191,7 +197,7 @@ jobs:
 
 
           # ---------------------------------------------------
-          # Pytest results
+          # PYTEST RESULTS
           # ---------------------------------------------------
 
           tests_passed = 0
@@ -201,12 +207,17 @@ jobs:
 
           if os.path.exists(junit_path):
 
-              root = ET.parse(junit_path).getroot()
+              root = ET.parse(
+                  junit_path
+              ).getroot()
 
               if root.tag == "testsuite":
                   suites = [root]
+
               else:
-                  suites = root.findall(".//testsuite")
+                  suites = root.findall(
+                      ".//testsuite"
+                  )
 
               total = 0
               failures = 0
@@ -243,7 +254,9 @@ jobs:
                       )
                   )
 
-              tests_failed = failures + errors
+              tests_failed = (
+                  failures + errors
+              )
 
               tests_passed = max(
                   0,
@@ -255,15 +268,19 @@ jobs:
 
 
           # ---------------------------------------------------
-          # CPU + memory usage of pytest process
+          # CPU + MEMORY
           # ---------------------------------------------------
 
           cpu_usage = 0.0
           memory_usage = 0.0
 
-          resource_path = "backend/test-resource.txt"
+          resource_path = (
+              "backend/test-resource.txt"
+          )
 
-          if os.path.exists(resource_path):
+          if os.path.exists(
+              resource_path
+          ):
 
               with open(
                   resource_path,
@@ -271,7 +288,9 @@ jobs:
                   encoding="utf-8"
               ) as resource_file:
 
-                  text = resource_file.read()
+                  text = (
+                      resource_file.read()
+                  )
 
 
               cpu_match = re.search(
@@ -283,7 +302,9 @@ jobs:
 
                   cpu_usage = min(
                       100.0,
-                      float(cpu_match.group(1))
+                      float(
+                          cpu_match.group(1)
+                      )
                   )
 
 
@@ -305,7 +326,7 @@ jobs:
 
 
           # ---------------------------------------------------
-          # Trivy vulnerability information
+          # TRIVY VULNERABILITY COUNTS
           # ---------------------------------------------------
 
           vulnerabilities = 0
@@ -315,9 +336,13 @@ jobs:
           medium_count = 0
           low_count = 0
 
-          trivy_path = "trivy-results.json"
+          trivy_path = (
+              "trivy-results.json"
+          )
 
-          if os.path.exists(trivy_path):
+          if os.path.exists(
+              trivy_path
+          ):
 
               with open(
                   trivy_path,
@@ -370,51 +395,58 @@ jobs:
 
 
           # ---------------------------------------------------
-          # Test exit code
+          # TEST EXIT CODE
           # ---------------------------------------------------
 
-          raw_test_exit_code = os.environ.get(
-              "TEST_EXIT_CODE",
-              "1"
+          raw_test_exit_code = (
+              os.environ.get(
+                  "TEST_EXIT_CODE",
+                  "1"
+              )
           )
 
           try:
+
               test_exit_code = int(
                   raw_test_exit_code
-                  if raw_test_exit_code != ""
+                  if raw_test_exit_code
                   else "1"
               )
 
           except ValueError:
+
               test_exit_code = 1
 
 
           # ---------------------------------------------------
-          # Final pipeline status
+          # PIPELINE STATUS
           #
-          # Failed when:
-          # 1. Pytest failed
-          # OR
-          # 2. Critical security vulnerabilities exist
+          # FAIL IF:
+          # - PYTEST FAILS
+          # - CRITICAL VULNERABILITY EXISTS
           # ---------------------------------------------------
 
           if (
               test_exit_code != 0
               or critical_count > 0
           ):
+
               status = "failed"
 
           else:
+
               status = "success"
 
 
           # ---------------------------------------------------
-          # GitHub outputs
+          # SAVE GITHUB OUTPUTS
           # ---------------------------------------------------
 
-          github_output = os.environ[
-              "GITHUB_OUTPUT"
-          ]
+          github_output = (
+              os.environ[
+                  "GITHUB_OUTPUT"
+              ]
+          )
 
           with open(
               github_output,
@@ -468,12 +500,20 @@ jobs:
 
 
           # ---------------------------------------------------
-          # Logs
+          # DISPLAY RESULTS
           # ---------------------------------------------------
 
-          print("======================================")
-          print("CI METRICS")
-          print("======================================")
+          print(
+              "======================================"
+          )
+
+          print(
+              "CI METRICS"
+          )
+
+          print(
+              "======================================"
+          )
 
           print(
               "Pipeline status:",
@@ -533,13 +573,79 @@ jobs:
               low_count
           )
 
-          print("======================================")
+          print(
+              "======================================"
+          )
 
           PY
 
 
       # =======================================================
-      # 11. SEND PIPELINE METRICS TO FASTAPI
+      # 11. AUTOMATIC ML FAILURE PREDICTION
+      # =======================================================
+
+      - name: Run AI failure prediction
+        if: always()
+
+        env:
+          BACKEND_API_URL: ${{ secrets.BACKEND_API_URL }}
+
+          BUILD_TIME: ${{ steps.metrics.outputs.build_time }}
+
+          TESTS_FAILED: ${{ steps.metrics.outputs.tests_failed }}
+
+          CPU_USAGE: ${{ steps.metrics.outputs.cpu_usage }}
+
+          MEMORY_USAGE: ${{ steps.metrics.outputs.memory_usage }}
+
+          VULNERABILITIES: ${{ steps.metrics.outputs.vulnerabilities }}
+
+        run: |
+          if [ -z "$BACKEND_API_URL" ]; then
+            echo "BACKEND_API_URL secret is not configured."
+            exit 1
+          fi
+
+          if [ -z "$BUILD_TIME" ]; then
+            echo "CI metrics are missing."
+            exit 1
+          fi
+
+
+          cat > prediction-payload.json <<EOF
+          {
+            "build_time": $BUILD_TIME,
+            "tests_failed": $TESTS_FAILED,
+            "cpu_usage": $CPU_USAGE,
+            "memory_usage": $MEMORY_USAGE,
+            "vulnerabilities": $VULNERABILITIES
+          }
+          EOF
+
+
+          echo "Sending metrics to AI prediction API:"
+
+          cat prediction-payload.json
+
+
+          curl \
+            --fail-with-body \
+            --retry 3 \
+            --retry-delay 5 \
+            --max-time 90 \
+            -X POST \
+            "$BACKEND_API_URL/api/predict" \
+            -H "Content-Type: application/json" \
+            --data @prediction-payload.json
+
+
+          echo ""
+
+          echo "AI prediction completed successfully."
+
+
+      # =======================================================
+      # 12. SEND PIPELINE METRICS TO FASTAPI
       # =======================================================
 
       - name: Send CI result to dashboard backend
@@ -563,22 +669,14 @@ jobs:
           VULNERABILITIES: ${{ steps.metrics.outputs.vulnerabilities }}
 
         run: |
-
           if [ -z "$BACKEND_API_URL" ]; then
-
             echo "BACKEND_API_URL secret is not configured."
-
             exit 1
-
           fi
 
-
           if [ -z "$PIPELINE_STATUS" ]; then
-
             echo "CI metrics were not generated."
-
             exit 1
-
           fi
 
 
@@ -597,6 +695,7 @@ jobs:
 
 
           echo "Sending CI payload:"
+
           cat ci-payload.json
 
 
@@ -604,17 +703,20 @@ jobs:
             --fail-with-body \
             --retry 3 \
             --retry-delay 5 \
+            --max-time 90 \
             -X POST \
             "$BACKEND_API_URL/api/ci/report" \
             -H "Content-Type: application/json" \
             --data @ci-payload.json
 
+
           echo ""
+
           echo "Pipeline metrics sent successfully."
 
 
       # =======================================================
-      # 12. FINAL DEPLOYMENT GATE
+      # 13. FINAL DEPLOYMENT GATE
       # =======================================================
 
       - name: CI deployment gate
@@ -624,10 +726,12 @@ jobs:
           PIPELINE_STATUS: ${{ steps.metrics.outputs.status }}
 
         run: |
-
           echo "Final pipeline status: $PIPELINE_STATUS"
 
-          if [ "$PIPELINE_STATUS" = "failed" ]; then
+
+          if [ -z "$PIPELINE_STATUS" ]; then
+
+            echo "Pipeline status could not be determined."
 
             echo "Deployment blocked."
 
@@ -636,9 +740,11 @@ jobs:
           fi
 
 
-          if [ -z "$PIPELINE_STATUS" ]; then
+          if [ "$PIPELINE_STATUS" = "failed" ]; then
 
-            echo "Pipeline status could not be determined."
+            echo "Tests failed or critical vulnerabilities were detected."
+
+            echo "Deployment blocked."
 
             exit 1
 
