@@ -818,22 +818,7 @@ def dashboard_overview(
 
 
     # --------------------------------------------------------
-    # Latest complexity analysis
-    # --------------------------------------------------------
-
-    latest_complexity = (
-        db.query(
-            models.CodeAnalysis
-        )
-        .order_by(
-            models.CodeAnalysis.id.desc()
-        )
-        .first()
-    )
-
-
-    # --------------------------------------------------------
-    # Overall risk
+    # OVERALL RISK + DEPLOYMENT DECISION
     # --------------------------------------------------------
 
     risk_priority = {
@@ -846,13 +831,11 @@ def dashboard_overview(
         "Critical": 4,
     }
 
-
     security_risk = (
         latest_security.risk_level
         if latest_security
         else "No data"
     )
-
 
     prediction_risk = (
         latest_prediction.risk_level
@@ -860,12 +843,43 @@ def dashboard_overview(
         else "No data"
     )
 
+    pipeline_status = (
+        str(latest_pipeline.status).lower()
+        if latest_pipeline
+        else "no data"
+    )
 
-    if (
-        latest_security
-        and latest_security.critical > 0
-    ):
+    tests_failed = (
+        latest_pipeline.tests_failed
+        if latest_pipeline
+        else 0
+    )
+
+    critical_count = (
+        latest_security.critical
+        if latest_security
+        else 0
+    )
+
+    # Actual CI/CD result has priority over ML prediction
+    pipeline_failed = (
+        pipeline_status in {
+            "failed",
+            "failure",
+            "error",
+        }
+        or tests_failed > 0
+    )
+
+    security_blocked = (
+        critical_count > 0
+    )
+
+    if security_blocked:
         overall_risk = "Critical"
+
+    elif pipeline_failed:
+        overall_risk = "High"
 
     elif (
         risk_priority.get(
@@ -878,15 +892,34 @@ def dashboard_overview(
             0,
         )
     ):
-        overall_risk = (
-            prediction_risk
+        overall_risk = prediction_risk
+
+    else:
+        overall_risk = security_risk
+
+
+    deployment_allowed = not (
+        pipeline_failed
+        or security_blocked
+    )
+
+    if security_blocked:
+        deployment_reason = (
+            "Deployment blocked because critical "
+            "security vulnerabilities were detected."
+        )
+
+    elif pipeline_failed:
+        deployment_reason = (
+            "Deployment blocked because the CI/CD "
+            "pipeline or automated tests failed."
         )
 
     else:
-        overall_risk = (
-            security_risk
+        deployment_reason = (
+            "Deployment allowed. Pipeline checks passed "
+            "and no critical vulnerabilities were detected."
         )
-
 
     # --------------------------------------------------------
     # Dashboard response
@@ -1083,6 +1116,10 @@ def dashboard_overview(
         # OVERALL SYSTEM RISK
         # ====================================================
 
-        "overall_risk":
-            overall_risk,
+       "overall_risk": overall_risk,
+
+"deployment": {
+    "allowed": deployment_allowed,
+    "reason": deployment_reason,
+}
     }
