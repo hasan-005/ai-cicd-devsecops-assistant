@@ -23,11 +23,8 @@ from .database import (
 )
 
 from .performance import measure_performance
-
 from .complexity import analyze_complexity
-
 from .security import analyze_trivy_report
-
 from .predictor import predict_failure
 
 from samples.sample_code import calculate_sum
@@ -689,8 +686,7 @@ def receive_ci_report(
     )
 
     # --------------------------------------------------------
-    # If GitHub Actions job is re-run, update existing record
-    # instead of returning 409.
+    # Re-run of same GitHub Action
     # --------------------------------------------------------
 
     if existing_pipeline:
@@ -776,9 +772,9 @@ def dashboard_overview(
     db: Session = Depends(get_db),
 ):
 
-    # --------------------------------------------------------
-    # Latest pipeline
-    # --------------------------------------------------------
+    # ========================================================
+    # LATEST PIPELINE
+    # ========================================================
 
     latest_pipeline = (
         db.query(models.PipelineRun)
@@ -788,10 +784,9 @@ def dashboard_overview(
         .first()
     )
 
-
-    # --------------------------------------------------------
-    # Latest security scan
-    # --------------------------------------------------------
+    # ========================================================
+    # LATEST SECURITY SCAN
+    # ========================================================
 
     latest_security = (
         db.query(models.SecurityScan)
@@ -801,25 +796,100 @@ def dashboard_overview(
         .first()
     )
 
-
-    # --------------------------------------------------------
-    # Latest ML prediction
-    # --------------------------------------------------------
+    # ========================================================
+    # LATEST ML PREDICTION
+    # ========================================================
 
     latest_prediction = (
-        db.query(
-            models.FailurePrediction
-        )
+        db.query(models.FailurePrediction)
         .order_by(
             models.FailurePrediction.id.desc()
         )
         .first()
     )
 
+    # ========================================================
+    # LATEST COMPLEXITY ANALYSIS
+    # ========================================================
 
-    # --------------------------------------------------------
-    # OVERALL RISK + DEPLOYMENT DECISION
-    # --------------------------------------------------------
+    latest_complexity = (
+        db.query(models.CodeAnalysis)
+        .order_by(
+            models.CodeAnalysis.id.desc()
+        )
+        .first()
+    )
+
+    # ========================================================
+    # SAFE VALUES
+    # ========================================================
+
+    pipeline_status = (
+        str(
+            latest_pipeline.status
+            or "No data"
+        )
+        if latest_pipeline
+        else "No data"
+    )
+
+    tests_failed = (
+        int(
+            latest_pipeline.tests_failed
+            or 0
+        )
+        if latest_pipeline
+        else 0
+    )
+
+    critical_count = (
+        int(
+            latest_security.critical
+            or 0
+        )
+        if latest_security
+        else 0
+    )
+
+    security_risk = (
+        str(
+            latest_security.risk_level
+            or "No data"
+        )
+        if latest_security
+        else "No data"
+    )
+
+    prediction_risk = (
+        str(
+            latest_prediction.risk_level
+            or "No data"
+        )
+        if latest_prediction
+        else "No data"
+    )
+
+    # ========================================================
+    # PIPELINE FAILURE
+    # ========================================================
+
+    status_lower = (
+        pipeline_status.lower()
+    )
+
+    pipeline_failed = (
+        "fail" in status_lower
+        or "error" in status_lower
+        or tests_failed > 0
+    )
+
+    security_blocked = (
+        critical_count > 0
+    )
+
+    # ========================================================
+    # OVERALL RISK
+    # ========================================================
 
     risk_priority = {
         "No data": 0,
@@ -830,50 +900,6 @@ def dashboard_overview(
         "High": 3,
         "Critical": 4,
     }
-
-    security_risk = (
-        latest_security.risk_level
-        if latest_security
-        else "No data"
-    )
-
-    prediction_risk = (
-        latest_prediction.risk_level
-        if latest_prediction
-        else "No data"
-    )
-
-    pipeline_status = (
-        str(latest_pipeline.status).lower()
-        if latest_pipeline
-        else "no data"
-    )
-
-    tests_failed = (
-        latest_pipeline.tests_failed
-        if latest_pipeline
-        else 0
-    )
-
-    critical_count = (
-        latest_security.critical
-        if latest_security
-        else 0
-    )
-
-    # Actual CI/CD result has priority over ML prediction
-    pipeline_failed = (
-        pipeline_status in {
-            "failed",
-            "failure",
-            "error",
-        }
-        or tests_failed > 0
-    )
-
-    security_blocked = (
-        critical_count > 0
-    )
 
     if security_blocked:
         overall_risk = "Critical"
@@ -892,11 +918,18 @@ def dashboard_overview(
             0,
         )
     ):
-        overall_risk = prediction_risk
+        overall_risk = (
+            prediction_risk
+        )
 
     else:
-        overall_risk = security_risk
+        overall_risk = (
+            security_risk
+        )
 
+    # ========================================================
+    # DEPLOYMENT DECISION
+    # ========================================================
 
     deployment_allowed = not (
         pipeline_failed
@@ -921,21 +954,19 @@ def dashboard_overview(
             "and no critical vulnerabilities were detected."
         )
 
-    # --------------------------------------------------------
-    # Dashboard response
-    # --------------------------------------------------------
+    # ========================================================
+    # RESPONSE
+    # ========================================================
 
     return {
         "project":
             "AI CI/CD DevSecOps Assistant",
-
 
         # ====================================================
         # PIPELINE
         # ====================================================
 
         "pipeline": {
-
             "pipeline_id": (
                 latest_pipeline.pipeline_id
                 if latest_pipeline
@@ -985,17 +1016,15 @@ def dashboard_overview(
             ),
         },
 
-
         # ====================================================
         # SECURITY
         # ====================================================
 
         "security": {
-
             "security_score": (
                 latest_security.security_score
                 if latest_security
-                else None
+                else 0
             ),
 
             "risk_level": (
@@ -1047,13 +1076,11 @@ def dashboard_overview(
             ),
         },
 
-
         # ====================================================
         # MACHINE LEARNING
         # ====================================================
 
         "ml_prediction": {
-
             "predicted_status": (
                 latest_prediction.predicted_status
                 if latest_prediction
@@ -1085,13 +1112,11 @@ def dashboard_overview(
             ),
         },
 
-
         # ====================================================
         # COMPLEXITY
         # ====================================================
 
         "complexity": {
-
             "file": (
                 latest_complexity.file_name
                 if latest_complexity
@@ -1111,15 +1136,24 @@ def dashboard_overview(
             ),
         },
 
-
         # ====================================================
         # OVERALL SYSTEM RISK
         # ====================================================
 
-       "overall_risk": overall_risk,
+        "overall_risk": (
+            overall_risk
+        ),
 
-"deployment": {
-    "allowed": deployment_allowed,
-    "reason": deployment_reason,
-}
+        # ====================================================
+        # DEPLOYMENT
+        # ====================================================
+
+        "deployment": {
+            "allowed": (
+                deployment_allowed
+            ),
+            "reason": (
+                deployment_reason
+            ),
+        },
     }
