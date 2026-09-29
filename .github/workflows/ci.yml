@@ -667,7 +667,10 @@ jobs:
             "backend/app/security.py"
             "backend/app/predictor.py"
             "backend/app/main.py"
+            "backend/samples/risky_demo.py"
           )
+            
+        
 
           for FILE in "${FILES[@]}"; do
 
