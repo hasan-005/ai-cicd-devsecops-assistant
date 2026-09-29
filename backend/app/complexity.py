@@ -1,239 +1,203 @@
 import ast
+from pathlib import Path
 
 
-class MemoryAnalyzer(ast.NodeVisitor):
+class ComplexityAnalyzer(ast.NodeVisitor):
     def __init__(self):
-        self.uses_dynamic_memory = False
+        self.current_loop_depth = 0
+        self.max_loop_depth = 0
+
+        self.has_sorting = False
+        self.has_log_loop = False
+
+        self.dynamic_memory = False
+
+    # ========================================================
+    # LOOP DETECTION
+    # ========================================================
+
+    def visit_For(self, node):
+        self.current_loop_depth += 1
+
+        self.max_loop_depth = max(
+            self.max_loop_depth,
+            self.current_loop_depth,
+        )
+
+        self.generic_visit(node)
+
+        self.current_loop_depth -= 1
+
+    def visit_AsyncFor(self, node):
+        self.current_loop_depth += 1
+
+        self.max_loop_depth = max(
+            self.max_loop_depth,
+            self.current_loop_depth,
+        )
+
+        self.generic_visit(node)
+
+        self.current_loop_depth -= 1
+
+    def visit_While(self, node):
+        self.current_loop_depth += 1
+
+        self.max_loop_depth = max(
+            self.max_loop_depth,
+            self.current_loop_depth,
+        )
+
+        # Detect common logarithmic patterns such as:
+        # n //= 2
+        # n /= 2
+        # n *= 2
+        for child in ast.walk(node):
+
+            if isinstance(child, ast.AugAssign):
+
+                if isinstance(
+                    child.op,
+                    (
+                        ast.FloorDiv,
+                        ast.Div,
+                        ast.Mult,
+                    ),
+                ):
+                    self.has_log_loop = True
+
+        self.generic_visit(node)
+
+        self.current_loop_depth -= 1
+
+    # ========================================================
+    # SORTING
+    # ========================================================
+
+    def visit_Call(self, node):
+
+        # sorted(...)
+        if (
+            isinstance(node.func, ast.Name)
+            and node.func.id == "sorted"
+        ):
+            self.has_sorting = True
+
+        # something.sort()
+        if (
+            isinstance(node.func, ast.Attribute)
+            and node.func.attr == "sort"
+        ):
+            self.has_sorting = True
+
+        # Dynamic structures such as:
+        # list.append(...)
+        # list.extend(...)
+        # set.add(...)
+        if (
+            isinstance(node.func, ast.Attribute)
+            and node.func.attr
+            in {
+                "append",
+                "extend",
+                "insert",
+                "add",
+                "update",
+            }
+        ):
+            self.dynamic_memory = True
+
+        self.generic_visit(node)
+
+    # ========================================================
+    # MEMORY DETECTION
+    # ========================================================
 
     def visit_ListComp(self, node):
-        self.uses_dynamic_memory = True
+        self.dynamic_memory = True
         self.generic_visit(node)
 
     def visit_SetComp(self, node):
-        self.uses_dynamic_memory = True
+        self.dynamic_memory = True
         self.generic_visit(node)
 
     def visit_DictComp(self, node):
-        self.uses_dynamic_memory = True
+        self.dynamic_memory = True
         self.generic_visit(node)
 
-    def visit_Call(self, node):
-        if isinstance(node.func, ast.Attribute):
-            if node.func.attr in [
-                "append",
-                "extend",
-                "add",
-                "update"
-            ]:
-                self.uses_dynamic_memory = True
-
+    def visit_GeneratorExp(self, node):
         self.generic_visit(node)
 
+    # ========================================================
+    # RESULT
+    # ========================================================
 
-def is_number_greater_than_one(node):
-    return (
-        isinstance(node, ast.Constant)
-        and isinstance(node.value, (int, float))
-        and node.value > 1
-    )
+    def get_time_complexity(self):
 
+        # Three or more nested loops
+        if self.max_loop_depth >= 3:
+            return f"O(n^{self.max_loop_depth})"
 
-def is_logarithmic_while(node):
-    """
-    Detect simple logarithmic loops such as:
+        # Two nested loops
+        if self.max_loop_depth == 2:
+            return "O(n^2)"
 
-    while n > 1:
-        n //= 2
+        # Loop + sorting
+        if (
+            self.max_loop_depth == 1
+            and self.has_sorting
+        ):
+            return "O(n log n)"
 
-    or:
+        # Sorting only
+        if self.has_sorting:
+            return "O(n log n)"
 
-    while x < n:
-        x *= 2
-    """
+        # Logarithmic loop
+        if (
+            self.has_log_loop
+            and self.max_loop_depth <= 1
+        ):
+            return "O(log n)"
 
-    for child in ast.walk(node):
+        # Single loop
+        if self.max_loop_depth == 1:
+            return "O(n)"
 
-        if isinstance(child, ast.AugAssign):
-            if isinstance(
-                child.op,
-                (ast.Div, ast.FloorDiv, ast.Mult)
-            ):
-                if is_number_greater_than_one(child.value):
-                    return True
-
-        if isinstance(child, ast.Assign):
-            if len(child.targets) != 1:
-                continue
-
-            target = child.targets[0]
-
-            if not isinstance(target, ast.Name):
-                continue
-
-            value = child.value
-
-            if isinstance(value, ast.BinOp):
-                if isinstance(
-                    value.op,
-                    (ast.Div, ast.FloorDiv, ast.Mult)
-                ):
-                    if (
-                        isinstance(value.left, ast.Name)
-                        and value.left.id == target.id
-                        and is_number_greater_than_one(value.right)
-                    ):
-                        return True
-
-    return False
-
-
-def max_complexity(first, second):
-    """
-    Complexity is represented as:
-
-    (power_of_n, power_of_log)
-
-    Examples:
-    O(1)       -> (0, 0)
-    O(log n)   -> (0, 1)
-    O(n)       -> (1, 0)
-    O(n log n) -> (1, 1)
-    O(n^2)     -> (2, 0)
-    """
-
-    if first[0] > second[0]:
-        return first
-
-    if second[0] > first[0]:
-        return second
-
-    if first[1] >= second[1]:
-        return first
-
-    return second
-
-
-def analyze_statements(statements):
-    complexity = (0, 0)
-
-    for statement in statements:
-        statement_complexity = analyze_node(statement)
-
-        complexity = max_complexity(
-            complexity,
-            statement_complexity
-        )
-
-    return complexity
-
-
-def analyze_node(node):
-
-    # Normal for-loop: O(n)
-    if isinstance(node, ast.For):
-
-        body_complexity = analyze_statements(node.body)
-
-        return (
-            body_complexity[0] + 1,
-            body_complexity[1]
-        )
-
-    # While loop
-    if isinstance(node, ast.While):
-
-        body_complexity = analyze_statements(node.body)
-
-        if is_logarithmic_while(node):
-            return (
-                body_complexity[0],
-                body_complexity[1] + 1
-            )
-
-        return (
-            body_complexity[0] + 1,
-            body_complexity[1]
-        )
-
-    # If statement
-    if isinstance(node, ast.If):
-
-        body_complexity = analyze_statements(node.body)
-        else_complexity = analyze_statements(node.orelse)
-
-        return max_complexity(
-            body_complexity,
-            else_complexity
-        )
-
-    # Function
-    if isinstance(
-        node,
-        (ast.FunctionDef, ast.AsyncFunctionDef)
-    ):
-        return analyze_statements(node.body)
-
-    # List/set/dictionary comprehensions
-    if isinstance(
-        node,
-        (ast.ListComp, ast.SetComp, ast.DictComp)
-    ):
-        number_of_loops = len(node.generators)
-
-        return (number_of_loops, 0)
-
-    return (0, 0)
-
-
-def complexity_to_string(complexity):
-    n_power, log_power = complexity
-
-    if n_power == 0 and log_power == 0:
         return "O(1)"
 
-    if n_power == 0 and log_power == 1:
-        return "O(log n)"
+    def get_space_complexity(self):
 
-    if n_power == 1 and log_power == 0:
-        return "O(n)"
+        if self.dynamic_memory:
+            return "O(n)"
 
-    if n_power == 1 and log_power == 1:
-        return "O(n log n)"
-
-    if n_power > 1 and log_power == 0:
-        return f"O(n^{n_power})"
-
-    if n_power > 0 and log_power > 0:
-        return f"O(n^{n_power} log n)"
-
-    return "O(1)"
+        return "O(1)"
 
 
 def analyze_complexity(file_path):
+    """
+    Heuristic static complexity analyzer.
 
-    with open(
-        file_path,
-        "r",
+    It estimates common Big-O patterns using Python AST.
+    It does not mathematically prove exact complexity.
+    """
+
+    path = Path(file_path)
+
+    source = path.read_text(
         encoding="utf-8"
-    ) as file:
-        source_code = file.read()
+    )
 
-    tree = ast.parse(source_code)
+    tree = ast.parse(source)
 
-    time_complexity = analyze_statements(tree.body)
+    analyzer = ComplexityAnalyzer()
 
-    memory_analyzer = MemoryAnalyzer()
-    memory_analyzer.visit(tree)
-
-    if memory_analyzer.uses_dynamic_memory:
-        space_complexity = "O(n)"
-    else:
-        space_complexity = "O(1)"
+    analyzer.visit(tree)
 
     return {
         "time_complexity":
-            complexity_to_string(time_complexity),
+            analyzer.get_time_complexity(),
 
         "space_complexity":
-            space_complexity
+            analyzer.get_space_complexity(),
     }
