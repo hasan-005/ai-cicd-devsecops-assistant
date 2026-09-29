@@ -1,0 +1,1041 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>AI CI/CD DevSecOps Dashboard</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+
+  <link
+    rel="preconnect"
+    href="https://fonts.gstatic.com"
+    crossorigin
+  >
+
+  <link
+    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+    rel="stylesheet"
+  >
+
+  <link
+    rel="stylesheet"
+    href="/src/style.css"
+  />
+</head>
+
+<body>
+
+  <div class="app">
+
+    <!-- =====================================================
+         SIDEBAR
+    ====================================================== -->
+
+    <aside class="sidebar">
+
+      <div class="logo">
+
+        <svg
+          class="logo-mark"
+          viewBox="0 0 24 24"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="M12 2L3 6.5V12c0 5.2 3.6 9.7 9 11 5.4-1.3 9-5.8 9-11V6.5L12 2z"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linejoin="round"
+          />
+
+          <path
+            d="M8.5 12.3l2.4 2.4 4.6-4.9"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+
+        <span>
+          DevSecOps<em>AI</em>
+        </span>
+
+      </div>
+
+
+      <!-- Navigation -->
+
+      <nav>
+
+        <a
+          href="#"
+          class="active"
+          data-icon="grid"
+        >
+
+          <svg
+            viewBox="0 0 20 20"
+            fill="none"
+          >
+            <rect
+              x="2.5"
+              y="2.5"
+              width="6"
+              height="6"
+              rx="1.2"
+              stroke="currentColor"
+              stroke-width="1.5"
+            />
+
+            <rect
+              x="11.5"
+              y="2.5"
+              width="6"
+              height="6"
+              rx="1.2"
+              stroke="currentColor"
+              stroke-width="1.5"
+            />
+
+            <rect
+              x="2.5"
+              y="11.5"
+              width="6"
+              height="6"
+              rx="1.2"
+              stroke="currentColor"
+              stroke-width="1.5"
+            />
+
+            <rect
+              x="11.5"
+              y="11.5"
+              width="6"
+              height="6"
+              rx="1.2"
+              stroke="currentColor"
+              stroke-width="1.5"
+            />
+          </svg>
+
+          Dashboard
+        </a>
+
+
+        <a
+          href="#"
+          data-icon="pipeline"
+        >
+
+          <svg
+            viewBox="0 0 20 20"
+            fill="none"
+          >
+            <circle
+              cx="4"
+              cy="10"
+              r="2"
+              stroke="currentColor"
+              stroke-width="1.5"
+            />
+
+            <circle
+              cx="16"
+              cy="10"
+              r="2"
+              stroke="currentColor"
+              stroke-width="1.5"
+            />
+
+            <path
+              d="M6 10h8"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-dasharray="1 2.4"
+              stroke-linecap="round"
+            />
+          </svg>
+
+          Pipelines
+        </a>
+
+
+        <a
+          href="#"
+          data-icon="predict"
+        >
+
+          <svg
+            viewBox="0 0 20 20"
+            fill="none"
+          >
+            <path
+              d="M3 14l3.5-5 3 3L15 5"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+
+            <path
+              d="M11.5 5H15v3.5"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+
+          Predictions
+        </a>
+
+
+        <a
+          href="#"
+          data-icon="shield"
+        >
+
+          <svg
+            viewBox="0 0 20 20"
+            fill="none"
+          >
+            <path
+              d="M10 2.5l6 2v5c0 4-2.6 6.8-6 7.8-3.4-1-6-3.8-6-7.8v-5l6-2z"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linejoin="round"
+            />
+          </svg>
+
+          Security
+        </a>
+
+
+        <a
+          href="#"
+          data-icon="complexity"
+        >
+
+          <svg
+            viewBox="0 0 20 20"
+            fill="none"
+          >
+            <circle
+              cx="10"
+              cy="4"
+              r="1.6"
+              stroke="currentColor"
+              stroke-width="1.5"
+            />
+
+            <circle
+              cx="4"
+              cy="15"
+              r="1.6"
+              stroke="currentColor"
+              stroke-width="1.5"
+            />
+
+            <circle
+              cx="16"
+              cy="15"
+              r="1.6"
+              stroke="currentColor"
+              stroke-width="1.5"
+            />
+
+            <path
+              d="M10 5.6L4 13.5M10 5.6l6 7.9M5.5 15h9"
+              stroke="currentColor"
+              stroke-width="1.5"
+            />
+          </svg>
+
+          Complexity
+        </a>
+
+
+        <a
+          href="#"
+          data-icon="perf"
+        >
+
+          <svg
+            viewBox="0 0 20 20"
+            fill="none"
+          >
+            <path
+              d="M3 17V9M9 17V3M15 17v-6"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+            />
+          </svg>
+
+          Performance
+        </a>
+
+      </nav>
+
+
+      <!-- API status -->
+
+      <div class="sidebar-foot">
+
+        <span
+          class="dot dot-idle"
+          id="apiDot"
+        ></span>
+
+        <span id="apiLabel">
+          Checking API…
+        </span>
+
+      </div>
+
+    </aside>
+
+
+
+    <!-- =====================================================
+         MAIN CONTENT
+    ====================================================== -->
+
+    <main class="main-content">
+
+
+      <!-- ===================================================
+           TOP BAR
+      ==================================================== -->
+
+      <header class="topbar">
+
+        <div
+          class="scanline"
+          aria-hidden="true"
+        ></div>
+
+
+        <div class="topbar-title">
+
+          <h1>
+            Dashboard
+          </h1>
+
+          <p>
+            AI-powered CI/CD monitoring and DevSecOps analysis
+          </p>
+
+        </div>
+
+
+        <div class="topbar-actions">
+
+          <div class="live-pill">
+
+            <span class="pulse-dot"></span>
+
+            Live
+
+          </div>
+
+
+          <span
+            class="last-updated"
+            id="lastUpdated"
+          >
+            —
+          </span>
+
+
+          <button id="refreshBtn">
+
+            <svg
+              class="refresh-icon"
+              viewBox="0 0 20 20"
+              fill="none"
+            >
+              <path
+                d="M16.5 10a6.5 6.5 0 1 1-2.1-4.8"
+                stroke="currentColor"
+                stroke-width="1.6"
+                stroke-linecap="round"
+              />
+
+              <path
+                d="M16.5 3.5V8h-4.5"
+                stroke="currentColor"
+                stroke-width="1.6"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+
+            <span>
+              Refresh
+            </span>
+
+          </button>
+
+        </div>
+
+      </header>
+
+
+
+      <!-- ===================================================
+           MAIN METRIC CARDS
+      ==================================================== -->
+
+      <section class="cards">
+
+
+        <!-- Build Status -->
+
+        <div
+          class="card"
+          id="card-buildStatus"
+        >
+
+          <h3>
+            Build Status
+          </h3>
+
+          <p class="metric-value">
+
+            <span
+              class="dot dot-idle"
+              id="buildStatusDot"
+            ></span>
+
+            <span id="buildStatus">
+              Loading…
+            </span>
+
+          </p>
+
+        </div>
+
+
+        <!-- Failure Probability -->
+
+        <div
+          class="card"
+          id="card-failureProbability"
+        >
+
+          <h3>
+            Failure Probability
+          </h3>
+
+          <p
+            class="metric-value"
+            id="failureProbability"
+          >
+            0%
+          </p>
+
+          <div class="bar">
+
+            <div
+              class="bar-fill"
+              id="failureProbabilityBar"
+            ></div>
+
+          </div>
+
+        </div>
+
+
+        <!-- Security Score -->
+
+        <div
+          class="card"
+          id="card-securityScore"
+        >
+
+          <h3>
+            Security Score
+          </h3>
+
+          <p
+            class="metric-value"
+            id="securityScore"
+          >
+            0
+          </p>
+
+          <div class="bar">
+
+            <div
+              class="bar-fill"
+              id="securityScoreBar"
+            ></div>
+
+          </div>
+
+        </div>
+
+
+        <!-- Overall Risk -->
+
+        <div
+          class="card"
+          id="card-overallRisk"
+        >
+
+          <h3>
+            Overall Risk
+          </h3>
+
+          <p class="metric-value">
+
+            <span
+              class="badge"
+              id="overallRisk"
+            >
+              Loading…
+            </span>
+
+          </p>
+
+        </div>
+
+      </section>
+
+
+
+      <!-- ===================================================
+           PERFORMANCE CARDS
+      ==================================================== -->
+
+      <section class="cards">
+
+
+        <!-- Build Time -->
+
+        <div class="card">
+
+          <h3>
+            Build Time
+          </h3>
+
+          <p
+            class="metric-value mono"
+            id="buildTime"
+          >
+            0 sec
+          </p>
+
+        </div>
+
+
+        <!-- CPU -->
+
+        <div class="card">
+
+          <h3>
+            CPU Usage
+          </h3>
+
+          <p
+            class="metric-value mono"
+            id="cpuUsage"
+          >
+            0%
+          </p>
+
+          <div class="bar">
+
+            <div
+              class="bar-fill"
+              id="cpuUsageBar"
+            ></div>
+
+          </div>
+
+        </div>
+
+
+        <!-- Memory -->
+
+        <div class="card">
+
+          <h3>
+            Memory Usage
+          </h3>
+
+          <p
+            class="metric-value mono"
+            id="memoryUsage"
+          >
+            0 MB
+          </p>
+
+        </div>
+
+
+        <!-- Vulnerabilities -->
+
+        <div class="card">
+
+          <h3>
+            Vulnerabilities
+          </h3>
+
+          <p
+            class="metric-value mono"
+            id="vulnerabilities"
+          >
+            0
+          </p>
+
+        </div>
+
+      </section>
+
+
+
+      <!-- ===================================================
+           CI/CD PIPELINE VISUALIZATION
+      ==================================================== -->
+
+      <section class="pipeline-panel">
+
+        <div class="panel-header">
+
+          <div>
+
+            <h2>
+              CI/CD Pipeline
+            </h2>
+
+            <p>
+              Current automated workflow
+            </p>
+
+          </div>
+
+        </div>
+
+
+        <div class="pipeline-flow">
+
+
+          <!-- Stage 1 -->
+
+          <div class="stage completed">
+
+            <div class="stage-icon">
+              1
+            </div>
+
+            <span>
+              Code Push
+            </span>
+
+          </div>
+
+
+          <div class="connector"></div>
+
+
+          <!-- Stage 2 -->
+
+          <div class="stage completed">
+
+            <div class="stage-icon">
+              2
+            </div>
+
+            <span>
+              Build
+            </span>
+
+          </div>
+
+
+          <div class="connector"></div>
+
+
+          <!-- Stage 3 -->
+
+          <div class="stage completed">
+
+            <div class="stage-icon">
+              3
+            </div>
+
+            <span>
+              Test
+            </span>
+
+          </div>
+
+
+          <div class="connector"></div>
+
+
+          <!-- Stage 4 -->
+
+          <div class="stage completed">
+
+            <div class="stage-icon">
+              4
+            </div>
+
+            <span>
+              Security Scan
+            </span>
+
+          </div>
+
+
+          <div class="connector"></div>
+
+
+          <!-- Stage 5 -->
+
+          <div class="stage completed">
+
+            <div class="stage-icon">
+              5
+            </div>
+
+            <span>
+              AI Analysis
+            </span>
+
+          </div>
+
+
+          <div class="connector"></div>
+
+
+          <!-- Stage 6 -->
+
+          <div
+            class="stage"
+            id="deployStage"
+          >
+
+            <div class="stage-icon">
+              6
+            </div>
+
+            <span>
+              Deploy
+            </span>
+
+          </div>
+
+        </div>
+
+      </section>
+      <!-- ===================================================
+     DASHBOARD CHARTS
+==================================================== -->
+
+<section class="charts-grid">
+
+  <div class="chart-card">
+    <div class="chart-header">
+      <h2>Failure Probability</h2>
+      <p>AI prediction confidence</p>
+    </div>
+
+    <div class="chart-container chart-small">
+      <canvas id="failureChart"></canvas>
+    </div>
+  </div>
+
+
+  <div class="chart-card">
+    <div class="chart-header">
+      <h2>Security Severity</h2>
+      <p>Latest Trivy findings</p>
+    </div>
+
+    <div class="chart-container">
+      <canvas id="securityChart"></canvas>
+    </div>
+  </div>
+
+
+  <div class="chart-card">
+    <div class="chart-header">
+      <h2>Build Time</h2>
+      <p>Recent pipeline runs</p>
+    </div>
+
+    <div class="chart-container">
+      <canvas id="buildTimeChart"></canvas>
+    </div>
+  </div>
+
+
+  <div class="chart-card">
+    <div class="chart-header">
+      <h2>CPU Usage</h2>
+      <p>Recent pipeline runs</p>
+    </div>
+
+    <div class="chart-container">
+      <canvas id="cpuChart"></canvas>
+    </div>
+  </div>
+
+
+  <div class="chart-card chart-wide">
+    <div class="chart-header">
+      <h2>Memory Usage</h2>
+      <p>Recent pipeline runs</p>
+    </div>
+
+    <div class="chart-container">
+      <canvas id="memoryChart"></canvas>
+    </div>
+  </div>
+
+</section>
+
+
+
+      <!-- ===================================================
+           ANALYSIS PANELS
+      ==================================================== -->
+
+      <section class="analysis-grid">
+
+
+        <!-- ML Prediction -->
+
+        <div class="panel panel-predict">
+
+          <h2>
+            ML Prediction
+          </h2>
+
+
+          <div class="row">
+
+            <span class="row-label">
+              Predicted Status
+            </span>
+
+            <span
+              class="row-value"
+              id="predictedStatus"
+            >
+              -
+            </span>
+
+          </div>
+
+
+          <div class="row">
+
+            <span class="row-label">
+              Confidence
+            </span>
+
+            <span
+              class="row-value mono"
+              id="confidence"
+            >
+              0%
+            </span>
+
+          </div>
+
+
+          <div class="row">
+
+            <span class="row-label">
+              Risk Level
+            </span>
+
+            <span
+              class="badge"
+              id="predictionRisk"
+            >
+              -
+            </span>
+
+          </div>
+
+        </div>
+
+
+
+        <!-- Complexity -->
+
+        <div class="panel panel-complexity">
+
+          <h2>
+            Complexity Analysis
+          </h2>
+
+
+          <div class="row">
+
+            <span class="row-label">
+              File
+            </span>
+
+            <span
+              class="row-value mono"
+              id="complexityFile"
+            >
+              -
+            </span>
+
+          </div>
+
+
+          <div class="row">
+
+            <span class="row-label">
+              Time Complexity
+            </span>
+
+            <span
+              class="row-value mono"
+              id="timeComplexity"
+            >
+              -
+            </span>
+
+          </div>
+
+
+          <div class="row">
+
+            <span class="row-label">
+              Space Complexity
+            </span>
+
+            <span
+              class="row-value mono"
+              id="spaceComplexity"
+            >
+              -
+            </span>
+
+          </div>
+
+        </div>
+
+
+
+        <!-- Security -->
+
+        <div class="panel panel-security">
+
+          <h2>
+            Security Analysis
+          </h2>
+
+
+          <div class="row sev-critical">
+
+            <span class="row-label">
+
+              <span class="sev-dot"></span>
+
+              Critical
+
+            </span>
+
+            <span
+              class="row-value mono"
+              id="critical"
+            >
+              0
+            </span>
+
+          </div>
+
+
+          <div class="row sev-high">
+
+            <span class="row-label">
+
+              <span class="sev-dot"></span>
+
+              High
+
+            </span>
+
+            <span
+              class="row-value mono"
+              id="high"
+            >
+              0
+            </span>
+
+          </div>
+
+
+          <div class="row sev-medium">
+
+            <span class="row-label">
+
+              <span class="sev-dot"></span>
+
+              Medium
+
+            </span>
+
+            <span
+              class="row-value mono"
+              id="medium"
+            >
+              0
+            </span>
+
+          </div>
+
+
+          <div class="row sev-low">
+
+            <span class="row-label">
+
+              <span class="sev-dot"></span>
+
+              Low
+
+            </span>
+
+            <span
+              class="row-value mono"
+              id="low"
+            >
+              0
+            </span>
+
+          </div>
+
+        </div>
+
+      </section>
+
+    </main>
+
+  </div>
+
+
+  <!-- =======================================================
+       JAVASCRIPT
+  ======================================================== -->
+
+  <script
+    type="module"
+    src="/src/main.js"
+  ></script>
+
+</body>
+</html>
